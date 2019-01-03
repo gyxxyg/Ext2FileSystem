@@ -10,12 +10,11 @@ public class Ext2FileSystem {
 	
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
-		FileSystem fileSystem = new FileSystem();
-		/*File file = new File("test.txt");
+		//FileSystem fileSystem = new FileSystem();
+		File file = new File("test.txt");
 		RandomAccessFile test = new RandomAccessFile(file, "rw");
-		test.seek(1);
-		test.write(110);
-		System.out.println(test.readInt());*/
+		System.out.println(test.read());
+		System.out.println(test.read());
 	}
 
 }
@@ -417,51 +416,101 @@ class FileSystem {
 	}
 	
 	// 在块id为start_index的间接块里得到count个block号
-	public int[] getIndirectBlock(int start_index, int count) {
+	public int[] getIndirectBlock(int start_index, int count) throws IOException {
 		int[] result = new int[count];
 		int base_length = (1+1+1+32+8+5957)*1024;
 		base_length += start_index*1024;
-		int step = 4;
+		ext.seek(base_length);
 		for(int i = 0; i < count; i++) {
-			
+			byte[] buffer = new byte[4];
+			ext.read(buffer);
+			result[i] = byteToInt(buffer, 0, 4);
 		}
 		return result;
 	}
 	
 	// 根据i节点查找空块
-	public int[] getBlocksByInode(INode node) {
+	public int[] getBlocksByInode(INode node) throws IOException {
 		int blocks = node.blocks;
 		int[] block = new int[blocks];
 		for(int i = 0; i < 12 && i < blocks; i++) {
 			block[i] = node.block[i];
 		}
-		if(blocks > 12) {
+		if(blocks <= 12) {
+			return block;
+		}else if(blocks > 12 && blocks <= 12+256) {
 			int first_indirect_block = block[12];	// 数据块 最多256个块号
-			
+			int[] temp = getIndirectBlock(first_indirect_block, blocks-12);
+			for(int i = 0; i < blocks-12; i++) {
+				block[12+i] = temp[i];
+			}
+			return block;
+		} else {
+			System.out.println("使用二级间接块，暂时未写！");
+			return null;
 		}
-		return null;
 	}
 		
-	// 在起始块号为start_index的目录添加目录项item
-	public boolean insertToDir(int start_index, DirItem item) throws IOException {
-		int base_length = (1+1+1+32+8+5957)*1024;
-		base_length += start_index*1024;
-		int item_index = 2;
-		
-		// 寻找第一个空的目录项
-		byte[] buffer = new byte[88];
-		int flag = 0;
-		while(flag != 0 && item_index < 64) {
-			int length = base_length + item_index*16;
-			ext.seek(length);
-			ext.read(buffer);
-			int inode = byteToInt(buffer, 0, 2);
-			if(inode == 0) {
-				flag = 1;
-			}
-			item_index++;
+	// 将目录项转为byte数组
+	public byte[] diritemToByte(DirItem diritem) {
+		byte[] result = new byte[16];
+		ArrayList<byte[]> temp = new ArrayList<byte[]>();
+		temp.add(intToByte(diritem.inode, 2));
+		int temp_value = diritem.name_len << 4 | diritem.file_type;
+		temp.add(intToByte(temp_value, 1));
+		for(int i = 0; i < 13; i++) {
+			temp.add(intToByte(diritem.name[0], 1));
 		}
-		
+		int k = 0;
+		for(int i = 0; i < temp.size(); i++) {
+			for(int j = 0; j < temp.get(i).length; j++) {
+				result[k++] = temp.get(i)[j];
+			}
+		}
+		return result;
+	}
+	
+	// ji
+	
+	
+	// 在i节点号为inode_index的目录添加目录项item
+	public boolean insertToDir(int inode_index, DirItem item) throws IOException {
+		// 查找该i节点所占的块号
+		int[] block = getBlocksByInode(getInodeById(inode_index));
+		int base_length = (1+1+1+32+8+5957)*1024;
+		int free_dir_item = -1;
+		int i;
+		for(i = 0; i < block.length; i++) {
+			int length = base_length + block[i]*1024;
+			int item_index = 0;
+			if(i == 0) {
+				item_index = 2;
+			}
+			length += item_index*16;
+			ext.seek(length);
+			// 寻找第一个空的目录项
+			byte[] buffer = new byte[16];
+			int flag = 0;
+			while(flag != 0 && item_index < 64) {
+				ext.read(buffer);
+				int inode = byteToInt(buffer, 0, 2);
+				if(inode == 0) {
+					free_dir_item = item_index;
+					flag = 1;
+				}
+				item_index++;
+			}
+			if(flag == 1) {
+				break;
+			}
+		}
+		if(free_dir_item == -1) {
+			return false;
+		} else {
+			// 插入点
+			int length = base_length + block[i]*1024 + free_dir_item*16;
+			
+		}
 		return false;
 	}
 	
@@ -505,5 +554,10 @@ class FileSystem {
 	public int[] getNFreeBlock(int n) {
 		int[] result = null;
 		return result;
+	}
+	
+	// 返回1个空闲i节点号
+	public int getFreeInode() {
+		return 0;
 	}
 }
