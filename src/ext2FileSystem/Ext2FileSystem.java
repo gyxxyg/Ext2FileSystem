@@ -418,6 +418,7 @@ class FileSystem {
 			free_index = 1024;
 			base_length = (1+1+1+32+8+5957)*1024 + block[out_index]*1024;
 		}
+		mInodeSize(inode_index, node.size+buffer.length);
 		return true;
 	}
 	
@@ -533,7 +534,8 @@ class FileSystem {
 	// 在i节点号为inode_index的目录添加目录项item
 	public boolean insertToDir(int inode_index, DirItem item) throws IOException {
 		// 查找该i节点所占的块号
-		int[] block = getBlocksByInode(getInodeById(inode_index));
+		INode node = getInodeById(inode_index);
+		int[] block = getBlocksByInode(node);
 		int base_length = (1+1+1+32+8+5957)*1024;
 		int free_dir_item = -1;
 		int i;
@@ -569,6 +571,7 @@ class FileSystem {
 			ext.seek(length);
 			byte[] byte_item = diritemToByte(item);
 			ext.write(byte_item);
+			mInodeSize(inode_index, node.size+16);
 			return true;
 		}
 	}
@@ -844,11 +847,14 @@ class FileSystem {
 	// 
 	
 	// 改变i节点id为inode_index的size
-	public void mInodeSize(int inode_index) {
+	public void mInodeSize(int inode_index, int size) throws IOException {
 		int base_length = gdt[0].inode_table * 1024;
 		int block_index = inode_index / 11;
 		int in_index = inode_index % 11;
 		int length = base_length + block_index*1024 + in_index*93 + 2;
+		ext.seek(length);
+		byte[] buffer = intToByte(size, 4);
+		ext.write(buffer);
 	}
 	
 	// 改变i节点id为inode_index的文件的链接数，改变量为change
