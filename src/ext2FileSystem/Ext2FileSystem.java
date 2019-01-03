@@ -54,7 +54,7 @@ class SuperBlock {
 		content[8] = content[9] = mtime;
 		this.magic = 1;	content[10] = magic;
 		this.state = 1;	content[11] = state;
-		this.first_inode_index = 0;	content[12] = first_inode_index;
+		this.first_inode_index = 1;	content[12] = first_inode_index;
 		this.inode_size = 93;	content[13] = inode_size;
 		this.block_group_nr = 0;	content[14] = block_group_nr;
 		this.byte_length = new int[]{4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 4, 2, 2};
@@ -149,7 +149,7 @@ class FileSystem {
 	}
 	
 	// 将数字number转换为length长度的byte数组
-	private byte[] intToByte(int number, int length) {  
+	public byte[] intToByte(int number, int length) {  
         int temp = number;  
         byte[] result = new byte[length];  
         for (int i = 0; i < length; i++) {  
@@ -159,21 +159,20 @@ class FileSystem {
         return result;  
     }
 	
-	 /*public static int byteToInt(byte[] b) {  
-	        int s = 0;  
-	        int s0 = b[0] & 0xff;// 最低位  
-	        int s1 = b[1] & 0xff;  
-	        int s2 = b[2] & 0xff;  
-	        int s3 = b[3] & 0xff;  
-	        s3 <<= 24;  
-	        s2 <<= 16;  
-	        s1 <<= 8;  
-	        s = s0 | s1 | s2 | s3;  
-	        return s;  
-	    }  */
+	// 将byte数组从start开始的length长度位转换为int
+	public int byteToInt(byte[] bytes, int start, int length) {  
+		int result = 0;
+		int[] temp = new int[length];
+		for(int i = 0; i < length; i++) {
+			temp[i] = bytes[i+start] & 0xff;
+			temp[i] <<= 8*i;
+			result |= temp[i];
+		}
+	    return result;  
+	}
 	
 	// 初始化size字节引导块
-	private void createBootBlock(int size) throws IOException {
+	public void createBootBlock(int size) throws IOException {
 		byte[] buffer = new byte[size];
 		for(int i = 0; i < size; i++) {
 			buffer[i] = 0;
@@ -182,7 +181,7 @@ class FileSystem {
 	}
 	
 	// 初始化size字节的超级块
-	private void createSuperBlock(int size) throws IOException {
+	public void createSuperBlock(int size) throws IOException {
 		for(int i = 0; i < superBlock.byte_length.length; i++) {
 			byte[] buffer = intToByte(superBlock.content[i], superBlock.byte_length[i]);
 			ext.seek(ext.length()); 
@@ -203,7 +202,7 @@ class FileSystem {
 	}
 	
 	// 初始化size字节的块组描述符组，共count个块组
-	private void createGDT(int size, int count) throws IOException {
+	public void createGDT(int size, int count) throws IOException {
 		for(int i = 0; i < count; i++) {
 			GDT current_gdt = gdt[i];
 			for(int j = 0; j < current_gdt.byte_length.length; j++) {
@@ -227,7 +226,7 @@ class FileSystem {
 	}
 	
 	// 在块位图中将id为index的块的位设置为使用
-	private void setBlockUsed(int index) throws IOException {
+	public void setBlockUsed(int index) throws IOException {
 		int base_length = gdt[0].block_bitmap*1024;
 		int out_index = index / 8;
 		int in_index = index % 8;
@@ -241,7 +240,7 @@ class FileSystem {
 	}
 	
 	// 在i节点位图中将id为index的i节点的位设置为使用
-	private void setInodeUsed(int index) throws IOException {
+	public void setInodeUsed(int index) throws IOException {
 		int base_length = gdt[0].inode_bitmap*1024;
 		int out_index = index / 8;
 		int in_index = index % 8;
@@ -255,7 +254,7 @@ class FileSystem {
 	}
 	
 	// 初始化长度为size的块位图
-	private void createBlockBitmap(int size) throws IOException {
+	public void createBlockBitmap(int size) throws IOException {
 		// 初始化位图为0
 		byte[] buffer = new byte[size];
 		for(int i = 0; i < size; i++) {
@@ -268,7 +267,7 @@ class FileSystem {
 	}
 	
 	// 初始化长度为size的i节点位图
-	private void createInodeBitmap(int size) throws IOException {
+	public void createInodeBitmap(int size) throws IOException {
 		// 初始化位图为0
 		byte[] buffer = new byte[size];
 		for(int i = 0; i < size; i++) {
@@ -281,7 +280,7 @@ class FileSystem {
 	}
 	
 	// 将i节点node转换为字节流的形式
-	private byte[] inodeToByte(INode node) {
+	public byte[] inodeToByte(INode node) {
 		byte[] result = new byte[88];
 		ArrayList<byte[]> temp = new ArrayList<byte[]>();
 		temp.add(intToByte(node.mode, 2));
@@ -298,7 +297,7 @@ class FileSystem {
 		int k = 0;
 		for(int i = 0; i < temp.size(); i++) {
 			for(int j = 0; j < temp.get(i).length; j++) {
-				result[k++] = temp.get(i)[k];
+				result[k++] = temp.get(i)[j];
 			}
 		}
 		return result;
@@ -324,12 +323,13 @@ class FileSystem {
 		}
 		ext.seek(ext.length());
 		ext.write(buffer);
-		// 插入id为0的i节点
+		// 插入id为1的i节点
 		INode new_node = new INode();
 		new_node.mode = 1;
+		new_node.size = 16*2;
 		new_node.blocks = 1;
 		new_node.block[0] = 1;
-		insertInode(0, new_node);
+		insertInode(1, new_node);
 	}
 	
 	// 初始化长度为size的数据区
@@ -345,6 +345,18 @@ class FileSystem {
 			ext.write(buffer);
 		}
 		// 初始化根目录
+		DirItem first_item = new DirItem();
+		DirItem second_item = new DirItem();
+		first_item.inode = 1;
+		first_item.name_len = 1;
+		first_item.file_type = 1;
+		first_item.name[0] = '.';
+		second_item.inode = 1;
+		second_item.name_len = 2;
+		second_item.file_type = 1;
+		second_item.name[0] = second_item.name[1] = '.';
+		insertToDir(1, first_item);
+		insertToDir(1, second_item);
 	}
 	
 	// 初始化文件系统
@@ -362,30 +374,115 @@ class FileSystem {
 	public boolean insertToFile(int start_index, int insert_position, int size, byte[] buffer) {
 		return false;
 	}
+	
+	// 将字节流转换为i节点node
+	private INode byteToNode(byte[] buffer) {
+		int[] byte_length = new int[]{2, 4, 4, 4, 4, 4, 2, 4};
+		int[] temp = new int[byte_length.length];
+		int begin = 0;
+		for(int i = 0; i < byte_length.length; i++) {
+			temp[i] = byteToInt(buffer, begin, byte_length[i]);
+			begin += byte_length[i];
+		}
+		int[] temp_block = new int[15];
+		for(int i = 0; i < 15; i++) {
+			temp_block[i] = byteToInt(buffer, begin, 4);
+			begin += 4;
+		}
+		INode node = new INode();
+		node.mode = temp[0];
+		node.size = temp[1];
+		node.atime = temp[2];
+		node.ctime = temp[3];
+		node.mtime = temp[4];
+		node.dtime = temp[5];
+		node.links_count = temp[6];
+		node.blocks = temp[7];
+		for(int i = 0; i < 15; i++) {
+			node.block[i] = temp_block[i];
+		}
+		return node;
+	}
+	
+	// 查找id为inode_index的i节点
+	public INode getInodeById(int inode_id) throws IOException {
+		int base_length = gdt[0].inode_table * 1024;
+		int block_index = inode_id / 11;
+		int in_index = inode_id % 11;
+		int length = base_length + block_index*1024 + in_index*93;
+		byte[] buffer = new byte[88];
+		ext.seek(length);
+		ext.read(buffer);
+		return byteToNode(buffer);
+	}
+	
+	// 在块id为start_index的间接块里得到count个block号
+	public int[] getIndirectBlock(int start_index, int count) {
+		int[] result = new int[count];
+		int base_length = (1+1+1+32+8+5957)*1024;
+		base_length += start_index*1024;
+		int step = 4;
+		for(int i = 0; i < count; i++) {
+			
+		}
+		return result;
+	}
+	
+	// 根据i节点查找空块
+	public int[] getBlocksByInode(INode node) {
+		int blocks = node.blocks;
+		int[] block = new int[blocks];
+		for(int i = 0; i < 12 && i < blocks; i++) {
+			block[i] = node.block[i];
+		}
+		if(blocks > 12) {
+			int first_indirect_block = block[12];	// 数据块 最多256个块号
+			
+		}
+		return null;
+	}
 		
 	// 在起始块号为start_index的目录添加目录项item
-	public boolean insertToDir(int start_index, DirItem item) {
+	public boolean insertToDir(int start_index, DirItem item) throws IOException {
+		int base_length = (1+1+1+32+8+5957)*1024;
+		base_length += start_index*1024;
+		int item_index = 2;
+		
+		// 寻找第一个空的目录项
+		byte[] buffer = new byte[88];
+		int flag = 0;
+		while(flag != 0 && item_index < 64) {
+			int length = base_length + item_index*16;
+			ext.seek(length);
+			ext.read(buffer);
+			int inode = byteToInt(buffer, 0, 2);
+			if(inode == 0) {
+				flag = 1;
+			}
+			item_index++;
+		}
+		
 		return false;
 	}
 	
 	// 返回起始块号为dir_index的目录的名为name的文件（目录）起始数据块号
-	public int getStartBlockByName(int dir_index, String name) {
+	public DirItem getDirItemByName(int dir_index, String name) {
+		return new DirItem();
+	}
+	
+	// 返回起始块号为dir_index的目录的第item_index个目录项
+	public DirItem getDirItemByIndex(int dir_index, int item_index) {
+		return new DirItem();
+	}
+	
+	// 返回起始块号为dir_index的目录的名为name的文件（目录）的i节点的id
+	public int getINodeIDByName(int dir_index, String name) {
 		return 0;
 	}
 	
-	// 返回起始块号为dir_index的目录的第item_index个目录项的起始数据块号
-	public int getStartBlockByIndex(int dir_index, int item_index) {
+	// 返回起始块号为dir_index的目录的第item_index文件的i节点id 
+	public int getINodeIDByIndex(int dir_index, int item_index) {
 		return 0;
-	}
-	
-	// 返回起始块号为dir_index的目录的名为name的文件（目录）的i节点内容
-	public INode getINodeByName(int dir_index, String name) {
-		return new INode();
-	}
-	
-	// 返回起始块号为dir_index的目录的第item_index文件的i节点内容 
-	public INode getINodeByIndex(int dir_index, int item_index) {
-		return new INode();
 	}
 	
 	// 返回起始块号为dir_index的文件的start位置开始的size个字节
