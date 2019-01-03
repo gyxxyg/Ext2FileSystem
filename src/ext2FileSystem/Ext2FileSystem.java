@@ -94,7 +94,12 @@ class DirItem {
 	public DirItem() {
 		inode = 0;
 		name_len = 0;
-		//file_type = 
+		name_len = 0;
+		file_type = 0;
+		name = new int[13];
+		for(int i = 0; i < 13; i++) {
+			name[i] = 0;
+		}
 	}
 }
 
