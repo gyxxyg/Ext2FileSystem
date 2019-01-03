@@ -865,4 +865,19 @@ class FileSystem {
 		ext.seek(length);
 		ext.write(intToByte(temp, 2));
 	}
+	
+	// 将i节点为inode_index1的文件内容拷贝到i节点为inode_index2的文件
+	public void copy(int inode_index1, int inode_index2) throws IOException {
+		int[] block1 = getBlocksByInode(getInodeById(inode_index1));
+		int[] block2 = getBlocksByInode(getInodeById(inode_index2));
+		for(int i = 0; i < block1.length; i++) {
+			int length1 = (1+1+1+32+8+5957)*1024 + block1[i]*1024;
+			byte[] buffer = new byte[1024];
+			ext.seek(length1);
+			ext.read(buffer);
+			int length2 = (1+1+1+32+8+5957)*1024 + block2[i]*1024;
+			ext.seek(length2);
+			ext.write(buffer);
+		}
+	}
 }
