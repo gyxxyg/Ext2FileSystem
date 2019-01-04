@@ -10,12 +10,12 @@ public class Ext2FileSystem {
 	
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
-		//FileSystem fileSystem = new FileSystem();
-		File file = new File("test.txt");
+		FileSystem fileSystem = new FileSystem();
+		/*File file = new File("test.txt");
 		RandomAccessFile test = new RandomAccessFile(file, "rw");
 		System.out.println(test.getFilePointer());
 		test.seek(2);
-		System.out.println(test.getFilePointer());
+		System.out.println(test.getFilePointer());*/
 	}
 
 }
